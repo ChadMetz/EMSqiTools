@@ -1,0 +1,284 @@
+---
+title: "qiTools Vignette"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{qiTools Vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# qiTools: Worked Example and Tutorial
+
+The **qiTools** package provides easy tools for creating SPC charts, importing data, summarizing tables, and running quality improvement (QI) analyses.
+
+---
+
+## 📦 Load the package
+
+```r
+library(qiTools)
+
+# 📥 Import data
+# Import CSV or Excel file
+df <- qi_csv("my_data.csv")
+
+#📊 Run SPC chart
+
+# Define annotations
+annotations <- data.frame(
+  Date = as.Date(c("2024-09-01", "2025-02-15")),
+  Label = c("Go Live", "Townhall"),
+  Side = c("right", "left")
+)
+
+# Generate SPC chart
+summary <- qi_spc(
+  df,
+  date_col = "Incident Date",
+  id_col = "pcr",
+  num_condition = "hr > 100",
+  den_condition = "TRUE",
+  time_unit = "week",
+  name = "High Heart Rate Cases",
+  annotations = annotations
+)
+
+#💾 Save plot and table
+save_qi_spc(path = ".", width = 18, height = 6, save_table = TRUE)
+
+#📈 Create summary table
+table <- qi_table(
+  df,
+  date_col = "Incident Date",
+  id_col = "pcr",
+  num_condition = "hr > 100",
+  den_condition = "TRUE",
+  time_unit = "week"
+)
+
+#🛠 Check data quality
+check_missing(df)
+check_duplicates(df)
+check_outliers(df)
+describe_data(df)
+
+#📑 Run data profile
+profile_data(df)
+
+📚 Get help
+qi_general_help()
+qi_spc_help()
+qi_sql_help()
+qi_csv_help()
+qi_table_help()
+
+# =====================
+# 📦 Load libraries
+# =====================
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(rlang)
+library(purrr)
+library(readr)
+library(readxl)
+library(DataExplorer)
+library(DBI)
+library(odbc)
+
+# =====================
+# 📥 qi_csv
+# =====================
+qi_csv <- function(file_path) {
+  ext <- tools::file_ext(file_path)
+  if (ext == "csv") {
+    message("Reading CSV file...")
+    data <- readr::read_csv(file_path, show_col_types = FALSE)
+  } else if (ext %in% c("xls", "xlsx")) {
+    message("Reading Excel file...")
+    data <- readxl::read_excel(file_path)
+  } else {
+    stop("Unsupported file type. Please provide a .csv, .xls, or .xlsx file.")
+  }
+  return(data)
+}
+
+# =====================
+# 📥 qi_sql
+# =====================
+qi_sql <- function(sql_file, server, database, uid, pwd, driver = "SQL Server") {
+  if (!file.exists(sql_file)) {
+    stop(paste("SQL file not found:", sql_file))
+  }
+  query <- paste(readLines(sql_file), collapse = "\n")
+  con <- DBI::dbConnect(odbc::odbc(), Driver = driver, Server = server,
+                        Database = database, UID = uid, PWD = pwd, Port = 1433)
+  result <- DBI::dbGetQuery(con, query)
+  DBI::dbDisconnect(con)
+  message("Query executed successfully. Returned ", nrow(result), " rows.")
+  return(result)
+}
+
+# =====================
+# 📈 qi_table
+# =====================
+qi_table <- function(df, date_col, id_col, num_condition, den_condition = "TRUE", time_unit = c("week", "month", "quarter")) {
+  time_unit <- match.arg(time_unit)
+  df <- df %>% mutate(date_var = as.Date(.data[[date_col]]), period = floor_date(date_var, time_unit))
+  den_df <- df %>% filter(!!parse_expr(den_condition)) %>% distinct(period, .data[[id_col]]) %>%
+    group_by(period) %>% summarise(Denominator = n(), .groups = "drop")
+  num_df <- df %>% filter(!!parse_expr(num_condition)) %>% distinct(period, .data[[id_col]]) %>%
+    group_by(period) %>% summarise(Numerator = n(), .groups = "drop")
+  summary <- den_df %>% left_join(num_df, by = "period") %>%
+    mutate(Numerator = ifelse(is.na(Numerator), 0, Numerator),
+           Percent = ifelse(Denominator > 0, Numerator / Denominator * 100, NA),
+           Percent_Formatted = paste0(round(Percent, 2), "%")) %>%
+    arrange(period)
+  return(summary)
+}
+
+# =====================
+# 📊 qi_spc
+# =====================
+qi_spc <- function(df, date_col, id_col, num_condition, den_condition = "TRUE", time_unit = c("week", "month", "quarter"),
+                   name = "QI SPC Chart", annotations = NULL, use_arrow = TRUE, plot_width = 12, plot_height = 3) {
+  time_unit <- match.arg(time_unit)
+  df <- df %>% mutate(date_var = as.Date(.data[[date_col]]), period = floor_date(date_var, time_unit))
+  den_df <- df %>% filter(!!parse_expr(den_condition)) %>% distinct(period, .data[[id_col]]) %>%
+    group_by(period) %>% summarise(Denominator = n(), .groups = "drop")
+  num_df <- df %>% filter(!!parse_expr(num_condition)) %>% distinct(period, .data[[id_col]]) %>%
+    group_by(period) %>% summarise(Numerator = n(), .groups = "drop")
+  summary <- den_df %>% left_join(num_df, by = "period") %>%
+    mutate(Numerator = ifelse(is.na(Numerator), 0, Numerator),
+           p = ifelse(Denominator > 0, Numerator / Denominator, NA),
+           CL = mean(p, na.rm = TRUE),
+           UCL = pmin(CL + 2 * sqrt((CL * (1 - CL)) / Denominator), 1),
+           LCL = pmax(CL - 2 * sqrt((CL * (1 - CL)) / Denominator), 0))
+  assign("last_qi_summary", summary, envir = .GlobalEnv)
+  step_df <- summary %>% select(period, CL, UCL, LCL) %>%
+    mutate(period = period - days(3)) %>%
+    rbind(summary[nrow(summary), ] %>% select(period, CL, UCL, LCL) %>%
+            mutate(period = max(summary$period)))
+  p <- ggplot(summary, aes(x = period, y = p)) +
+    geom_line(linewidth = 1, color = "black") +
+    geom_point(size = 2, color = "black") +
+    geom_step(data = step_df, aes(x = period, y = UCL), linetype = "dotted", color = "red", linewidth = 1) +
+    geom_step(data = step_df, aes(x = period, y = LCL), linetype = "dotted", color = "red", linewidth = 1) +
+    geom_hline(aes(yintercept = mean(summary$p, na.rm = TRUE)), linetype = "solid", color = "blue", linewidth = 1) +
+    labs(title = name, x = tools::toTitleCase(time_unit), y = "Proportion") +
+    scale_x_date(date_labels = "%b %d, %Y", date_breaks = "1 month", expand = c(0.02, 0.02)) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 1)) +
+    theme_minimal() +
+    theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+          axis.text.y = element_text(size = 12),
+          axis.title.x = element_text(size = 12, face = "bold"),
+          axis.title.y = element_text(size = 12, face = "bold"))
+  if (!is.null(annotations)) {
+    max_y <- max(summary$UCL, na.rm = TRUE) + 0.05
+    annotations <- annotations %>%
+      mutate(hjust_value = ifelse(Side == "left", 1, 0),
+             Y_Pos = ifelse(is.na(Y_Pos), max_y, Y_Pos))
+    p <- p + geom_vline(data = annotations, aes(xintercept = Date), linetype = "dashed", color = "blue",
+                        linewidth = 1, arrow = if (use_arrow) arrow(length = unit(0.15, "inches")) else NULL) +
+      geom_text(data = annotations,
+                aes(x = Date, y = Y_Pos, label = Label, hjust = hjust_value),
+                color = "blue", angle = 0, vjust = -1, size = 4)
+  }
+  grid::grid.newpage()
+  grid::grid.draw(ggplotGrob(p))
+  assign("last_qi_plot", p, envir = .GlobalEnv)
+  assign("last_qi_plot_name", name, envir = .GlobalEnv)
+  return(summary)
+}
+
+# =====================
+# 💾 save_qi_spc
+# =====================
+save_qi_spc <- function(path = ".", width = 12, height = 3, dpi = 300, save_table = FALSE) {
+  if (!exists("last_qi_plot") || !exists("last_qi_plot_name")) {
+    stop("No plot found. Run qi_spc() first.")
+  }
+  safe_name <- gsub("[^A-Za-z0-9_]", "_", last_qi_plot_name)
+  plot_file <- file.path(path, paste0(safe_name, ".png"))
+  ggsave(plot_file, plot = last_qi_plot, width = width, height = height, dpi = dpi)
+  message("Plot saved to: ", plot_file)
+  if (save_table) {
+    if (!exists("last_qi_summary")) {
+      warning("No summary table found. Make sure you saved the summary from qi_spc().")
+    } else {
+      table_file <- file.path(path, paste0(safe_name, "_summary.csv"))
+      readr::write_csv(last_qi_summary, table_file)
+      message("Summary table saved to: ", table_file)
+    }
+  }
+}
+
+# =====================
+# 🛠 Helpers
+# =====================
+check_missing <- function(df) {
+  result <- sapply(df, function(x) sum(is.na(x)))
+  percent <- round(result / nrow(df) * 100, 2)
+  data.frame(Column = names(result), Missing_Count = as.vector(result), Missing_Percent = percent)
+}
+
+check_duplicates <- function(df) {
+  dup_rows <- df[duplicated(df), ]
+  if (nrow(dup_rows) == 0) message("No duplicate rows found.")
+  return(dup_rows)
+}
+
+check_outliers <- function(df) {
+  numeric_cols <- df %>% dplyr::select(where(is.numeric))
+  outlier_summary <- lapply(numeric_cols, function(x) {
+    Q1 <- quantile(x, 0.25, na.rm = TRUE)
+    Q3 <- quantile(x, 0.75, na.rm = TRUE)
+    IQR <- Q3 - Q1
+    lower <- Q1 - 1.5 * IQR
+    upper <- Q3 + 1.5 * IQR
+    sum(x < lower | x > upper, na.rm = TRUE)
+  })
+  data.frame(Variable = names(outlier_summary), Outlier_Count = as.integer(unlist(outlier_summary)))
+}
+
+describe_data <- function(df) {
+  numeric_summary <- df %>% dplyr::select(where(is.numeric)) %>%
+    dplyr::summarise_all(list(min = ~min(., na.rm = TRUE), max = ~max(., na.rm = TRUE),
+                              mean = ~mean(., na.rm = TRUE), median = ~median(., na.rm = TRUE),
+                              sd = ~sd(., na.rm = TRUE)), .groups = "drop")
+  categorical_summary <- df %>% dplyr::select(where(~is.character(.) || is.factor(.))) %>%
+    purrr::map(~table(., useNA = "ifany")) %>%
+    purrr::map_df(~data.frame(Level = names(.), Count = as.integer(.)), .id = "Variable")
+  list(Numeric_Summary = numeric_summary, Categorical_Summary = categorical_summary)
+}
+
+profile_data <- function(df) {
+  if (!requireNamespace("DataExplorer", quietly = TRUE)) {
+    stop("Package 'DataExplorer' is required. Please install it with install.packages('DataExplorer').")
+  }
+  DataExplorer::create_report(df)
+}
+
+# =====================
+# 📚 Example vignette usage (quick demo)
+# =====================
+# library(qiTools) → assumed loaded
+
+# Example run:
+# df <- qi_csv("my_data.csv")
+# annotations <- data.frame(Date = as.Date(c("2024-09-01", "2025-02-15")),
+#                            Label = c("Go Live", "Townhall"),
+#                            Side = c("right", "left"))
+# summary <- qi_spc(df, "Incident Date", "pcr", "hr > 100", "TRUE", "week", "High HR", annotations)
+# save_qi_spc(path = ".", width = 18, height = 6, save_table = TRUE)
+# table <- qi_table(df, "Incident Date", "pcr", "hr > 100", "TRUE", "week")
+# check_missing(df)
+# check_duplicates(df)
+# check_outliers(df)
+# describe_data(df)
+# profile_data(df)
+
+
+
+
