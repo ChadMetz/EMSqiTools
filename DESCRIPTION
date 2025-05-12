@@ -1,0 +1,42 @@
+Package: qiTools
+Type: Package
+Title: Quality Improvement Tools for SPC Charts and Data Analysis
+Version: 0.1.0
+Authors@R: 
+    person("Your", "Name", email = "you@example.com", role = c("aut", "cre"))
+Description: 
+    The qiTools package provides a collection of tools to support quality 
+    improvement (QI) and operational analysis. It includes functions for importing 
+    data from CSV, Excel, and SQL sources; generating statistical process control 
+    (SPC) charts with control limits and annotations; summarizing numerator and 
+    denominator metrics over time; checking data quality (missingness, duplicates, 
+    outliers); and profiling datasets automatically. The package is designed to help 
+    healthcare and operations teams monitor performance, identify trends, and 
+    improve decision-making.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: R (>= 4.0)
+Imports:
+    dplyr,
+    ggplot2,
+    lubridate,
+    rlang,
+    purrr,
+    readr,
+    readxl,
+    DataExplorer,
+    DBI,
+    odbc,
+    grid,
+    tools,
+    stats,
+    utils
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat,
+    devtools
+VignetteBuilder: knitr
