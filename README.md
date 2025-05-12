@@ -23,7 +23,7 @@
 ### From GitHub 
 
 # Install from GitHub
-devtools::install_github("Chad-Metz/qitools")
+devtools::install_github("ChadMetz/qitools")
 ```
 
 ### From Local Source
