@@ -125,4 +125,4 @@ MIT License
 ## ✉ Contact
 
 **Maintainer**: Chad Metz  
-**Email**: cmetz@sccad.com
+**Email**: chadmetz@me.com
