@@ -1,4 +1,4 @@
----
+S---
 title: "qiTools Vignette"
 output: rmarkdown::html_vignette
 vignette: >
