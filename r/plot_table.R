@@ -1,4 +1,4 @@
-#' qi_table
+#' plot_table
 #'
 #' Create a summary table with numerator, denominator, percent, and formatted percent.
 #'
@@ -10,8 +10,8 @@
 #' @param time_unit Time unit for aggregation ('week', 'month', 'quarter').
 #' @return A summary dataframe.
 #' @examples
-#' table <- qi_table(df, "Incident Date", "pcr", "c02 < 45", "TRUE", "week")
-qi_table <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
+#' table <- plot_table(df, "Incident Date", "pcr", "c02 < 45", "TRUE", "week")
+plot_table <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
                      time_unit = c("week", "month", "quarter")) {
   time_unit <- match.arg(time_unit)
   
