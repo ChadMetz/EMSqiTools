@@ -1,4 +1,4 @@
-#' qi_csv
+#' import_spreadsheet
 #'
 #' Import a CSV or Excel file as a dataframe, with sheet selection if multiple sheets.
 #'
@@ -6,10 +6,10 @@
 #' @param sheet Optional. Name or index of the Excel sheet to read.
 #' @return A dataframe.
 #' @examples
-#' df <- qi_csv("data.csv")
-#' df <- qi_csv("data.xlsx")
-#' df <- qi_csv("data.xlsx", sheet = "Sheet2")
-qi_csv <- function(file_path, sheet = NULL) {
+#' df <- import_spreadsheet("data.csv")
+#' df <- import_spreadsheet("data.xlsx")
+#' df <- import_spreadsheet("data.xlsx", sheet = "Sheet2")
+import_spreadsheet <- function(file_path, sheet = NULL) {
   if (!requireNamespace("readr", quietly = TRUE)) {
     stop("Package 'readr' is required. Please install it with install.packages('readr').")
   }
