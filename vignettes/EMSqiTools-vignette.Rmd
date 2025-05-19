@@ -1,5 +1,5 @@
 SS---
-title: "qiTools Vignette"
+title: "EMSqiTools Vignette"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{qiTools Vignette}
