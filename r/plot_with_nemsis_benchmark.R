@@ -1,4 +1,4 @@
-#' SPC Chart with NEMSIS Benchmark Overlay
+#' Control Chart with NEMSIS Benchmark Overlay
 #'
 #' Generates a p-chart using `qi_spc()` and overlays national benchmark data from NEMSIS.
 #' Useful for comparing your local quality improvement trends against national reference values.
@@ -20,7 +20,7 @@
 #' @examples
 #' \dontrun{
 #' df <- qi_csv("seizure_cases.csv")
-#' spc_overlay <- qi_spc_with_benchmark(
+#' spc_overlay <- plot_with_nemsis_benchmark(
 #'   data = df,
 #'   date_col = IncidentDate,
 #'   id_col = pcr,
@@ -34,7 +34,7 @@
 #'
 #' spc_overlay$plot
 #' }
-qi_spc_with_benchmark <- function(data,
+plot_with_nemsis_benchmark <- function(data,
                                   date_col,
                                   id_col,
                                   num_condition,
