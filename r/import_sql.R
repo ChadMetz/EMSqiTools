@@ -1,4 +1,4 @@
-#' qi_sql
+#' import_sql
 #'
 #' Run a SQL query from a .sql file against a database server.
 #'
@@ -10,8 +10,8 @@
 #' @param driver ODBC driver name (default: "SQL Server").
 #' @return A dataframe with the query result.
 #' @examples
-#' df <- qi_sql("query.sql", server = "my_server", database = "my_db", uid = "username", pwd = "password")
-qi_sql <- function(sql_file, server, database, uid, pwd, driver = "SQL Server") {
+#' df <- import_sql("query.sql", server = "my_server", database = "my_db", uid = "username", pwd = "password")
+import_sql <- function(sql_file, server, database, uid, pwd, driver = "SQL Server") {
   if (!requireNamespace("DBI", quietly = TRUE)) {
     stop("Package 'DBI' is required. Please install it with install.packages('DBI').")
   }
