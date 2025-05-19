@@ -8,3 +8,23 @@ export(plot_with_nemsis_benchmark)
 export(plot_xbar_chart)
 export(import_spreadsheet)
 export(plot_control_chart)
+
+# Imported functions from other packages
+importFrom(dplyr, "%>%", filter, mutate, group_by, summarise, select, distinct, 
+           left_join, arrange, summarise_all, n)
+importFrom(ggplot2, ggplot, aes, geom_line, geom_point, geom_step, geom_hline, 
+           geom_vline, geom_text, scale_x_date, scale_y_continuous, labs, 
+           theme_minimal, theme, element_text, ggsave)
+importFrom(lubridate, floor_date, days)
+importFrom(purrr, map, map_df)
+importFrom(readr, read_csv, write_csv)
+importFrom(readxl, read_excel)
+importFrom(DBI, dbConnect, dbDisconnect, dbGetQuery)
+importFrom(odbc, odbc)
+importFrom(DataExplorer, create_report)
+importFrom(rlang, parse_expr)
+importFrom(grid, grid.newpage, grid.draw)
+importFrom(tools, file_ext, toTitleCase)
+importFrom(stats, quantile, sd)
+importFrom(utils, read.csv)
+importFrom(scales, percent_format)
