@@ -1,4 +1,4 @@
-#' qi_spc
+#' plot_control_chart
 #'
 #' Create a statistical process control (SPC) chart with annotations and optional control limits.
 #'
@@ -14,7 +14,7 @@
 #' @param plot_height Height of the plot when displayed (default 3 inches).
 #'
 #' @return A summary dataframe with period, numerator, denominator, proportion, and control limits.
-#' Also displays the SPC chart.
+#' Also displays a control chart.
 #'
 #' @examples
 #' annotations <- data.frame(
@@ -22,11 +22,11 @@
 #'   Label = c("Go Live", "Townhall"),
 #'   Side = c("right", "left")
 #' )
-#' qi_spc(df, "Incident Date", "pcr", "hr > 100", "TRUE", "week", "High HR", annotations)
+#' plot_control_chart(df, "Incident Date", "pcr", "hr > 100", "TRUE", "week", "High HR", annotations)
 
-qi_spc <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
+plot_control_chart <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
                    time_unit = c("week", "month", "quarter"),
-                   name = "QI SPC Chart", annotations = NULL,
+                   name = "QI Control Chart", annotations = NULL,
                    plot_width = 12, plot_height = 3) {
   
   time_unit <- match.arg(time_unit)
