@@ -26,8 +26,8 @@ devtools::install("path/to/EMSqiTools")
 
 # Or install from GitHub
 devtools::install_github("ChadMetz/EMSqiTools")
----
 
+```
 ## 🚀 Quick Start
 
 ```r
