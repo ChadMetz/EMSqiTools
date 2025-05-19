@@ -10,8 +10,8 @@
 #'
 #' @examples
 #' df <- data.frame(group = rep(1:10, each = 5), val = rnorm(50))
-#' xbar_chart(df, subgroup_col = "group", value_col = "val")
-xbar_chart <- function(df, subgroup_col, value_col) {
+#' plot_xbar_chart(df, subgroup_col = "group", value_col = "val")
+plot_xbar_chart <- function(df, subgroup_col, value_col) {
   df <- df %>% group_by(.data[[subgroup_col]]) %>%
     summarise(mean_val = mean(.data[[value_col]], na.rm = TRUE),
               n = n()) %>%
@@ -40,8 +40,8 @@ xbar_chart <- function(df, subgroup_col, value_col) {
 #'
 #' @examples
 #' df <- data.frame(group = rep(1:10, each = 5), val = rnorm(50))
-#' r_chart(df, subgroup_col = "group", value_col = "val")
-r_chart <- function(df, subgroup_col, value_col) {
+#' plot_r_chart(df, subgroup_col = "group", value_col = "val")
+plot_r_chart <- function(df, subgroup_col, value_col) {
   df <- df %>% group_by(.data[[subgroup_col]]) %>%
     summarise(range_val = max(.data[[value_col]], na.rm = TRUE) -
                             min(.data[[value_col]], na.rm = TRUE)) %>%
@@ -71,8 +71,8 @@ r_chart <- function(df, subgroup_col, value_col) {
 #'
 #' @examples
 #' df <- data.frame(week = 1:20, defects = rpois(20, lambda = 3))
-#' c_chart(df, time_col = "week", count_col = "defects")
-c_chart <- function(df, time_col, count_col) {
+#' plot_c_chart(df, time_col = "week", count_col = "defects")
+plot_c_chart <- function(df, time_col, count_col) {
   df <- df %>% mutate(CL = mean(.data[[count_col]], na.rm = TRUE),
                       UCL = CL + 3 * sqrt(CL),
                       LCL = pmax(0, CL - 3 * sqrt(CL)))
@@ -102,7 +102,7 @@ c_chart <- function(df, time_col, count_col) {
 #' charts <- imr_chart(df, value_col = "value", time_col = "order")
 #' charts$I_Chart
 #' charts$MR_Chart
-imr_chart <- function(df, value_col, time_col) {
+plot_imr_chart <- function(df, value_col, time_col) {
   df <- df %>% arrange(.data[[time_col]])
   df$MR <- c(NA, abs(diff(df[[value_col]])))
 
