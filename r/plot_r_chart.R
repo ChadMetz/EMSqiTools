@@ -166,10 +166,10 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
       scale_shape_manual(name = "Event Annotations", values = setNames(annotations$Shape, annotations$Label))
   }
 
-  p <- p +
+    p <- p +
     scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
     scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(-0.1, 1.05)) +
-    theme_minimal(base_size = 12, base_family = "Segoe UI") +
+    theme_minimal(base_size = 12, base_family = "Arial") +  # ← updated line
     theme(
       axis.text = element_text(face = "bold", color = "#1A1A1A", size = 12),
       axis.title = element_text(face = "bold", color = "#1A1A1A", size = 12),
