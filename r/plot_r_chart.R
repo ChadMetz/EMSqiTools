@@ -189,5 +189,5 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
   assign("last_qi_plot_name", name, envir = .GlobalEnv)
   assign("last_qi_summary", summary, envir = .GlobalEnv)
 
-  return(summary)
+  return(p)
 }
