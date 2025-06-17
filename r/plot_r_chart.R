@@ -236,7 +236,4 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
   return(summary)
 }
 
-  
-  return(summary)
-}
 
