@@ -31,9 +31,32 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
     stop("num_condition or den_condition contains invalid R code. Use '&' or '|' instead of commas.")
   })
   
+  # --- Flexible date parsing helper ---
+  parse_date_flexibly <- function(dates) {
+    formats <- c("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y")
+    for (fmt in formats) {
+      parsed <- as.Date(dates, format = fmt)
+      if (all(!is.na(parsed) | is.na(dates))) return(parsed)
+    }
+    warning("Could not parse all dates. Returning NAs where format failed.")
+    return(as.Date(dates))  # fallback to standard parsing
+  }
+  
+  # --- Mutate with robust date parsing ---
   df <- df %>%
-    mutate(date_var = as.Date(.data[[date_col]]),
-           period = as.Date(floor_date(date_var, unit = time_unit)))
+    mutate(
+      raw_date = .data[[date_col]],
+      date_var = parse_date_flexibly(raw_date),
+      period = as.Date(floor_date(date_var, unit = time_unit))
+    )
+  
+  # --- Check for NA dates after parsing ---
+  if (any(is.na(df$date_var))) {
+    bad_dates <- df %>% filter(is.na(date_var)) %>% distinct(raw_date)
+    stop(paste("Some dates could not be parsed. Problematic values include:", 
+               paste(head(bad_dates$raw_date, 5), collapse = ", ")))
+  }
+  
   
   den_df <- df %>%
     filter(!!parse_expr(den_condition)) %>%
