@@ -8,9 +8,10 @@
 #' @export
 
 plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
-                               time_unit = c("week", "month", "quarter"),
-                               name = "QI Control Chart", annotations = NULL,
-                               plot_width = 12, plot_height = 3) {
+                         time_unit = c("week", "month", "quarter"),
+                         name = "QI Control Chart", annotations = NULL,
+                         plot_width = 12, plot_height = 3,
+                         drop_invalid_dates = FALSE) {
   library(dplyr)
   library(ggplot2)
   library(lubridate)
@@ -39,7 +40,7 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
       if (all(!is.na(parsed) | is.na(dates))) return(parsed)
     }
     warning("Could not parse all dates. Returning NAs where format failed.")
-    return(as.Date(dates))  # fallback to standard parsing
+    return(as.Date(dates))  # fallback
   }
   
   # --- Mutate with robust date parsing ---
@@ -50,14 +51,20 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
       period = as.Date(floor_date(date_var, unit = time_unit))
     )
   
-  # --- Check for NA dates after parsing ---
+  # --- Handle invalid dates ---
   if (any(is.na(df$date_var))) {
     bad_dates <- df %>% filter(is.na(date_var)) %>% distinct(raw_date)
-    stop(paste("Some dates could not be parsed. Problematic values include:", 
-               paste(head(bad_dates$raw_date, 5), collapse = ", ")))
+    
+    if (drop_invalid_dates) {
+      warning(paste("Dropping", nrow(bad_dates), "rows with invalid or missing dates."))
+      df <- df %>% filter(!is.na(date_var))
+    } else {
+      stop(paste("Some dates could not be parsed. Problematic values include:",
+                 paste(head(bad_dates$raw_date, 5), collapse = ", ")))
+    }
   }
   
-  
+  # --- Numerator & Denominator counts ---
   den_df <- df %>%
     filter(!!parse_expr(den_condition)) %>%
     distinct(period, .data[[id_col]]) %>%
@@ -102,6 +109,7 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
     summary$LCL_adj[start_idx:end_idx] <- pmax(cl - 2 * sd, 0)
   }
   
+  # --- Plot Construction ---
   step_df <- summary %>%
     select(period, UCL_adj, LCL_adj) %>%
     mutate(period = period - days(3)) %>%
@@ -124,7 +132,6 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
     filter(row_number() != 1) %>%
     transmute(Start_Date = period)
   
-  # --- Annotations ---
   if (!is.null(annotations)) {
     annotations <- annotations %>%
       mutate(
@@ -137,7 +144,7 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
       )
   }
   
-  # --- Plot ---
+  # --- Build the Plot ---
   p <- ggplot(summary, aes(x = period, y = p)) +
     geom_line(linewidth = 1, color = "#333333") +
     geom_point(size = 3, color = "black") +
@@ -184,3 +191,4 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
   
   return(summary)
 }
+
