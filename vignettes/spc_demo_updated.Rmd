@@ -9,7 +9,7 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(EMSEMSqiTools)
+library(EMSqiTools)
 library(ggplot2)
 ```
 
