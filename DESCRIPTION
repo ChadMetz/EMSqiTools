@@ -1,11 +1,12 @@
 Package: EMSqiTools
+Type: Package
 Title: Quality Improvement Tools for EMS
 Version: 0.1.0
 Authors@R: person("Chad", "Metz", email = "chadmetz@icloud.com", role = c("aut", "cre"))
 Description: 
     The EMSqiTools package provides a collection of tools to support quality 
     improvement (QI). It includes functions for importing 
-    data from CSV, Excel, and SQL sources; generating  control charts with control limits and annotations;
+    data from CSV, Excel, and SQL sources; generating control charts with control limits and annotations;
     summarizing numerator and denominator metrics over time; checking data quality (missingness, duplicates, 
     outliers); and profiling datasets automatically. The package is designed to help 
     healthcare and operations teams monitor performance, identify trends, and 
@@ -37,3 +38,4 @@ Suggests:
     testthat,
     devtools
 VignetteBuilder: knitr
+
