@@ -1,36 +1,21 @@
-#' Plot Proportion Control (p-type) Chart with Shift Detection and Event Annotations
+#' Plot Proportion Control Chart with Annotations and Shift Detection
 #'
-#' Creates a weekly, monthly, or quarterly control chart for proportions using numerator
-#' and denominator conditions applied to a dataset. Control limits are calculated using
-#' segmented means with Western Electric Rule 2 (8 points above or below center line).
+#' This function plots a proportion control chart (p-chart) for quality improvement analysis.
+#' It supports Western Electric Rule 2 shift detection, segmented control limits, and custom annotations.
 #'
-#' The function also supports flexible event annotation using a data frame of custom markers
-#' with date, label, shape, and vertical position.
+#' @param df A data frame containing the dataset.
+#' @param date_col The name of the date column (character).
+#' @param id_col The name of the unique ID column (character).
+#' @param num_condition A string expression to filter the numerator condition.
+#' @param den_condition A string expression to filter the denominator condition. Defaults to "TRUE".
+#' @param time_unit Time aggregation level: "week", "month", or "quarter".
+#' @param name Title for the chart.
+#' @param annotations Optional data frame of annotations with columns: Date, Label, Shape, Y (optional), Side (optional).
+#' @param plot_width Width of the plot in inches (unused).
+#' @param plot_height Height of the plot in inches (unused).
+#' @param drop_invalid_dates Whether to drop rows with unparseable dates. Defaults to FALSE.
 #'
-#' @param df A data frame containing at minimum a date column and unique identifier.
-#' @param date_col Name of the column containing dates (quoted string).
-#' @param id_col Name of the column containing unique incident identifiers (quoted string).
-#' @param num_condition A string expression (R code) used to define the numerator condition.
-#' @param den_condition A string expression (R code) for denominator inclusion. Defaults to `"TRUE"`.
-#' @param time_unit One of `"week"`, `"month"`, or `"quarter"`. Determines time aggregation granularity.
-#' @param name Chart title (used for plot display and object naming).
-#' @param annotations Optional data frame of event annotations. Must include:
-#'   \describe{
-#'     \item{Date}{Date of annotation (as `Date` or convertible to Date)}
-#'     \item{Label}{Character label for legend}
-#'     \item{Shape}{Integer ggplot2 shape code (e.g., 21, 22)}
-#'     \item{Y}{Y-axis vertical location of point (e.g., 1)}
-#'   }
-#' @param plot_width Width of output plot in inches (reserved for future use).
-#' @param plot_height Height of output plot in inches (reserved for future use).
-#' @param drop_invalid_dates Logical; if `TRUE`, rows with invalid or missing dates are dropped
-#'   with a warning. If `FALSE` (default), an error is thrown if dates cannot be parsed.
-#'
-#' @return A data frame summarizing time-period aggregates including numerator, denominator,
-#'   proportion (`p`), and control limits (`CL_adj`, `UCL_adj`, `LCL_adj`). Also assigns plot to
-#'   `last_qi_plot`, chart name to `last_qi_plot_name`, and summary to `last_qi_summary`
-#'   in the global environment.
-#'
+#' @return A summary data frame with proportions and control limits.
 #' @export
 plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
                          time_unit = c("week", "month", "quarter"),
@@ -56,7 +41,6 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
     stop("num_condition or den_condition contains invalid R code. Use '&' or '|' instead of commas.")
   })
 
-  # Flexible date parsing
   parse_date_flexibly <- function(dates) {
     formats <- c("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y")
     for (fmt in formats) {
@@ -64,7 +48,7 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
       if (all(!is.na(parsed) | is.na(dates))) return(parsed)
     }
     warning("Could not parse all dates. Returning NAs where format failed.")
-    return(as.Date(dates))  # fallback
+    return(as.Date(dates))
   }
 
   df <- df %>%
@@ -152,6 +136,7 @@ plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
   if (!is.null(annotations)) {
     annotations <- annotations %>%
       mutate(
+        Label = as.character(Label),
         Date = as.Date(Date),
         Side = if (!"Side" %in% names(.)) "right" else Side,
         Y_Pos = if (!"Y" %in% names(.)) max(summary$UCL_adj, na.rm = TRUE) + 0.05 else Y,
