@@ -3,29 +3,32 @@
 
 **Quality Improvement Tools for EMS**
 
-The `EMSqiTools` package provides a set of easy-to-use functions for creating statistical process control (SPC) charts, importing data, summarizing performance metrics, and checking data quality — designed to support healthcare and operational improvement work in emergency medical services.
+The `EMSqiTools` package provides a robust toolkit for EMS professionals conducting operational and clinical improvement work. It includes tools for SPC charting, benchmarking against national standards, data profiling, and cleaning — all with minimal setup and tailored for QI workflows.
 
 ---
 
-## Features
+## ✨ Features
 
 ✅ Import CSV, Excel, or SQL data  
-✅ Generate SPC charts with control limits and annotations  
-✅ Summarize numerator / denominator counts over time  
+✅ Create various SPC charts (`p`, `c`, `I-MR`, `X̄`) with segmented control limits and annotations  
+✅ Compare your data to NEMSIS benchmarks  
+✅ Summarize numerator/denominator performance over time  
 ✅ Check for missing values, duplicates, and outliers  
 ✅ Profile your dataset with automatic reports  
-✅ Save plots and summary tables
+✅ Save plots and summary tables for reporting  
 
 ---
 
-## Installation
+## 📦 Installation
 
 ```r
-# install from GitHub
+# Install the package from GitHub
 devtools::install_github("ChadMetz/EMSqiTools")
-
 ```
-## Quick Start
+
+---
+
+## 🚀 Quick Start
 
 ```r
 library(EMSqiTools)
@@ -33,78 +36,101 @@ library(EMSqiTools)
 # Import data
 df <- import_spreadsheet("my_data.csv")
 
-# Define annotations
+# Define event annotations
 annotations <- data.frame(
   Date = as.Date(c("2024-09-01", "2025-02-15")),
   Label = c("Go Live", "Townhall"),
   Side = c("right", "left")
 )
 
-# Run SPC chart
-summary <- plot_control_chart(
+# Run SPC chart (p-chart example)
+summary <- plot_p_chart(
   df,
   date_col = "Incident Date",
-  id_col = "pcr",
-  num_condition = "hr > 100",
-  den_condition = "TRUE",
-  time_unit = "week",
-  name = "High Heart Rate Cases",
+  num_col = "Aspirin_Admin",
+  den_col = "Incident_Internal",
+  time_unit = "month",
+  name = "Aspirin Administration Rate",
   annotations = annotations
 )
 
-# Save plot and table
-save_qi_spc(path = ".", width = 18, height = 6, save_table = TRUE)
-
+# Save outputs
+save_qi_spc(path = ".", width = 16, height = 5, save_table = TRUE)
 ```
 
 ---
 
-## Main Functions
+## 🛠 Main Functions
 
-| Function            | Description                                |
-|---------------------|--------------------------------------------|
-| `import_spreadsheet()`          | Import CSV or Excel files                  |
-| `import_sql()`          | Import data from SQL queries               |
-| `plot_table()`        | Generate summary tables over time          |
-| `plot_control_chart()`          | Create SPC charts with control limits      |
-| `save_qi_spc()`     | Save SPC plot and summary table            |
-| `check_missing()`   | Report missing values per column           |
-| `check_duplicates()`| Find duplicate rows                        |
-| `check_outliers()`  | Identify outliers in numeric data          |
-| `describe_data()`   | Summary of numeric and categorical data    |
-| `profile_data()`    | Auto-profile dataset with DataExplorer     |
+| Function                      | Description                                                   |
+|-------------------------------|---------------------------------------------------------------|
+| `import_spreadsheet()`        | Import data from CSV or Excel                                 |
+| `import_sql()`                | Import data from SQL query outputs                            |
+| `plot_p_chart()`              | Proportion (p) chart with segmented control limits            |
+| `plot_c_chart()`              | Count (c) chart for defect/event tracking                     |
+| `plot_imr_chart()`            | Individual-Moving Range (I-MR) chart                          |
+| `plot_xbar_chart()`           | X-bar chart for continuous data with subgroups                |
+| `plot_with_nemsis_benchmark()`| Compare data to national benchmark lines                      |
+| `get_nemsis_benchmark()`      | Pull NEMSIS national benchmark reference values               |
+| `summary_table()`             | Summarize numerator and denominator performance by time unit  |
+| `qi_help()`                   | Show example inputs and formatting guidance                   |
+| `check_missing()`             | Identify missing values by column                             |
+| `check_duplicates()`          | Identify duplicate rows                                       |
+| `check_outliers()`            | Flag numeric outliers                                         |
+| `describe_data()`             | Describe numeric/categorical columns                          |
+| `profile_data()`              | Auto-profile the dataset using `DataExplorer`                 |
+| `save_qi_spc()`               | Save SPC chart and summary table as image and CSV             |
 
 ---
 
-## Documentation
+## 📊 Choosing the Right SPC Chart
 
-For detailed examples:
+| Chart Type    | Use When...                                                                 |
+|---------------|------------------------------------------------------------------------------|
+| **p-chart**   | You're monitoring a **proportion** (e.g., aspirin given / total incidents)   |
+| **c-chart**   | You're counting **events per unit** (e.g., falls per shift)                  |
+| **I-MR chart**| You have **continuous individual values** and no subgroups (e.g., response time) |
+| **X-bar chart**| You have **subgrouped continuous data** (e.g., avg on-scene time per week)  |
+
+---
+
+## 📐 Control Chart Rules (Western Electric)
+
+SPC charts include built-in support for shift detection based on these core rules:
+
+1. **Rule 1 – Point beyond control limit**: 1 point outside UCL or LCL
+2. **Rule 2 – Run of 8 on one side**: 8 consecutive points above or below the centerline
+3. **Rule 3 – Trend**: 6 points all increasing or decreasing
+4. **Rule 4 – Cycles or systematic patterns**: Flag unusual repeating patterns (visual)
+
+These help detect **non-random signals** that may indicate process change.
+
+---
+
+## 📄 Documentation
+
+For detailed examples and reports:
 
 ```r
 browseVignettes("EMSqiTools")
 ```
 
-You can also explore the bundled R Markdown report template:
+Also check:
 
 ```
 vignettes/EMSqiTools-report-template.Rmd
-
 ```
 
-## Contributing
+---
+
+## 🤝 Contributing
 
 Pull requests and issues are welcome!  
-Let’s build a great QI toolkit.
+Let’s build the ultimate QI toolkit for EMS teams.
 
 ---
 
-## License
-
-MIT License
-
----
-
-## Contact
+## 📬 Contact
 
 **Maintainer**: Chad Metz  
 **Email**: chadmetz@me.com
