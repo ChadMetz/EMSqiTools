@@ -17,7 +17,7 @@
 #'
 #' @return A summary data frame with proportions and control limits.
 #' @export
-plot_r_chart <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
+plot_p_chart <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
                          time_unit = c("week", "month", "quarter"),
                          name = "QI Control Chart", annotations = NULL,
                          plot_width = 12, plot_height = 3, drop_invalid_dates = FALSE) {
