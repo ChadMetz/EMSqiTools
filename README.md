@@ -7,7 +7,7 @@ The `EMSqiTools` package provides a set of easy-to-use functions for creating st
 
 ---
 
-## ✨ Features
+## Features
 
 ✅ Import CSV, Excel, or SQL data  
 ✅ Generate SPC charts with control limits and annotations  
@@ -18,17 +18,14 @@ The `EMSqiTools` package provides a set of easy-to-use functions for creating st
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```r
-# Install from local source (after building)
-devtools::install("path/to/EMSqiTools")
-
-# Or install from GitHub
+# install from GitHub
 devtools::install_github("ChadMetz/EMSqiTools")
 
 ```
-## 🚀 Quick Start
+## Quick Start
 
 ```r
 library(EMSqiTools)
@@ -62,7 +59,7 @@ save_qi_spc(path = ".", width = 18, height = 6, save_table = TRUE)
 
 ---
 
-## 📊 Main Functions
+## Main Functions
 
 | Function            | Description                                |
 |---------------------|--------------------------------------------|
@@ -79,7 +76,7 @@ save_qi_spc(path = ".", width = 18, height = 6, save_table = TRUE)
 
 ---
 
-## 📑 Documentation
+## Documentation
 
 For detailed examples:
 
@@ -94,33 +91,20 @@ vignettes/EMSqiTools-report-template.Rmd
 
 ```
 
----
-
-## 🔧 Development Notes
-
-- Use `#' @export` roxygen2 tags for all exported functions  
-- Run `devtools::document()` to update help files and NAMESPACE  
-- Run `devtools::build()` to package the library for sharing or local install  
-
----
-
-## 🤝 Contributing
+## Contributing
 
 Pull requests and issues are welcome!  
-Let’s build a great QI toolkit together.
+Let’s build a great QI toolkit.
 
 ---
 
-## 📜 License
+## License
 
 MIT License
 
 ---
 
-## ✉ Contact
-
-Maintainer: Chad Metz
-Email: chadmetz@icloud.com
+## Contact
 
 **Maintainer**: Chad Metz  
 **Email**: chadmetz@me.com
