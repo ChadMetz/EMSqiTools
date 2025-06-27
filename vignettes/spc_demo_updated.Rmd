@@ -30,14 +30,14 @@ plot_c_chart(df,
         denominator_condition = "TRUE")
 ```
 
-## X-Bar and R Charts – Heart Rate by Batch
+## X-Bar and P Charts – Heart Rate by Batch
 
 ```{r}
 xbar_chart(df, subgroup_col = "BatchID", value_col = "HeartRate")
 ```
 
 ```{r}
-r_chart(df, subgroup_col = "BatchID", value_col = "HeartRate")
+p_chart(df, subgroup_col = "BatchID", value_col = "HeartRate")
 ```
 
 ## C Chart – Defect Counts by Week
