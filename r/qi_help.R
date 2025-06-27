@@ -11,7 +11,7 @@ qi_help <- function() {
   cat("\n==== QI TOOLS PACKAGE HELP ====" ,"\n")
   cat("\nCharting Functions:\n")
   cat("- plot_control_chart(): Proportion (P/U) Chart\n")
-  cat("- plot_r_chart(): Range Chart (R Chart)\n")
+  cat("- plot_p_chart(): Range Chart (R Chart)\n")
   cat("- plot_c_chart(): Count Chart (C Chart)\n")
   cat("- plot_imr_chart(): I-MR (Individuals & Moving Range) Chart\n")
   cat("- summary_table(): Generate monthly summary tables\n")
