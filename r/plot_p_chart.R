@@ -1,22 +1,34 @@
 #' Plot Proportion Control Chart with Optional NEMSIS Benchmark
 #'
-#' @param df Data frame with your local data.
-#' @param date_col Name of the date column (character).
-#' @param id_col Unique identifier column (character).
-#' @param num_col Column used for numerator filter.
-#' @param num_value Value(s) or function to select numerator.
-#' @param den_col Column used for denominator filter.
-#' @param den_value Value(s) or function to select denominator.
-#' @param time_unit Time unit for aggregation.
-#' @param name Chart title.
-#' @param annotations Optional event annotations.
-#' @param benchmark_df Optional benchmark dataframe (e.g., from `get_nemsis_benchmark()`).
-#' @param drop_invalid_dates Drop rows with invalid dates?
-#' @param return_table Return summary table instead of plot?
+#' This function generates a p-chart (proportion control chart) using
+#' user-specified numerator and denominator logic. It includes segmented
+#' control limits based on Western Electric Rule 2 and can optionally overlay
+#' national NEMSIS benchmarks or annotation events.
 #'
-#' @return A ggplot or a summary table.
-  df, date_col, id_col, num_col, num_value,
-  den_col, den_value = NULL,
+#' @param df A data frame containing your input data.
+#' @param date_col Name of the date column (character).
+#' @param id_col Name of the unique identifier column (character).
+#' @param num_col Column used to define the numerator.
+#' @param num_value Value(s) in `num_col` that count toward the numerator.
+#' @param den_col Column used to define the denominator.
+#' @param den_value Value(s) in `den_col` that count toward the denominator. Defaults to NULL (all values).
+#' @param time_unit Time unit for aggregation. One of `"week"`, `"month"`, or `"quarter"`.
+#' @param name Chart title.
+#' @param annotations Optional data frame of event annotations with `Date`, `Label`, etc.
+#' @param benchmark_df Optional benchmark data frame (e.g., from `get_nemsis_benchmark()`).
+#' @param drop_invalid_dates Whether to drop rows with unparseable dates.
+#' @param return_table If TRUE, return a formatted summary table instead of the plot.
+#'
+#' @return A ggplot object or a formatted tibble.
+#' @export
+plot_p_chart <- function(
+  df,
+  date_col,
+  id_col,
+  num_col,
+  num_value,
+  den_col,
+  den_value = NULL,
   time_unit = c("week", "month", "quarter"),
   name = "QI Control Chart",
   annotations = NULL,
@@ -57,7 +69,7 @@
         axis.text.x = element_text(angle = 45, hjust = 1),
         plot.title = element_text(face = "bold", size = 14, hjust = 0.5)
       )
-    grid.newpage(); grid.draw(ggplotGrob(p)); return(p)
+    return(p)
   }
 
   if (is.null(df)) stop("df must be provided.")
@@ -99,20 +111,7 @@
       p = ifelse(Denominator > 0, Numerator / Denominator, NA)
     )
 
-  # Return formatted summary if requested
-  if (return_table) {
-    return(
-      summary %>%
-        arrange(period) %>%
-        mutate(
-          Proportion = round(p * 100, 1),
-          CL = round(mean(p, na.rm = TRUE) * 100, 1)
-        ) %>%
-        select(period, Numerator, Denominator, Proportion, CL) %>%
-        as_tibble()
-    )
-  }
-
+  # SHIFT DETECTION
   side <- summary$p > mean(summary$p, na.rm = TRUE)
   rle_obj <- rle(side)
   lens <- rle_obj$lengths
@@ -123,7 +122,6 @@
   summary$CL_adj <- NA
   summary$UCL_adj <- NA
   summary$LCL_adj <- NA
-
   segment_labels <- data.frame()
 
   for (i in seq_along(shift_starts)) {
@@ -142,6 +140,21 @@
       CL_adj = cl,
       label = paste0("CL ", round(cl * 100), "%")
     ))
+  }
+
+  if (return_table) {
+    return(
+      summary %>%
+        arrange(period) %>%
+        mutate(
+          Proportion = round(p * 100, 1),
+          CL = round(CL_adj * 100, 1),
+          UCL = round(UCL_adj * 100, 1),
+          LCL = round(LCL_adj * 100, 1)
+        ) %>%
+        select(period, Numerator, Denominator, Proportion, CL, UCL, LCL) %>%
+        as_tibble()
+    )
   }
 
   control_segments <- summary %>%
@@ -202,13 +215,6 @@
       axis.text.x = element_text(angle = 45, hjust = 1),
       plot.title = element_text(face = "bold", hjust = 0.5, size = 14)
     )
-
-  grid.newpage()
-  grid.draw(ggplotGrob(p))
-
-  assign("last_qi_plot", p, envir = .GlobalEnv)
-  assign("last_qi_plot_name", name, envir = .GlobalEnv)
-  assign("last_qi_summary", summary, envir = .GlobalEnv)
 
   return(p)
 }
