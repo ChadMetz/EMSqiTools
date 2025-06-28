@@ -1,136 +1,62 @@
 
 # EMSqiTools
 
-**Quality Improvement Tools for EMS**
-
-The `EMSqiTools` package provides a robust toolkit for EMS professionals conducting operational and clinical improvement work. It includes tools for SPC charting, benchmarking against national standards, data profiling, and cleaning — all with minimal setup and tailored for QI workflows.
-
----
-
-## ✨ Features
-
-✅ Import CSV, Excel, or SQL data  
-✅ Create various SPC charts (`p`, `c`, `I-MR`, `X̄`) with segmented control limits and annotations  
-✅ Compare your data to NEMSIS benchmarks  
-✅ Summarize numerator/denominator performance over time  
-✅ Check for missing values, duplicates, and outliers  
-✅ Profile your dataset with automatic reports  
-✅ Save plots and summary tables for reporting  
+**EMSqiTools** is an R package for EMS quality improvement analysis. It provides tools for statistical process control (SPC) charting, benchmarking, data profiling, and data validation.
 
 ---
 
 ## 📦 Installation
 
 ```r
-# Install the package from GitHub
-devtools::install_github("ChadMetz/EMSqiTools")
+# Install from local directory
+devtools::install("path/to/EMSqiTools")
+
+# Or load after sourcing
+source("EMSqiTools_Functions.R")
 ```
 
 ---
 
-## 🚀 Quick Start
+## 📊 SPC Chart Functions
+
+| Function           | Description |
+|--------------------|-------------|
+| `plot_p_chart()`   | Proportion chart with annotations, Western Electric Rule 2, and optional benchmark overlay |
+| `plot_x_chart()`   | X-bar chart with segmented control limits |
+| `plot_c_chart()`   | Count chart for event rates |
+| `plot_imr_chart()` | Individuals and Moving Range chart |
+
+---
+
+## 📈 Benchmark
 
 ```r
-library(EMSqiTools)
-
-# Import data
-df <- import_spreadsheet("my_data.csv")
-
-# Define event annotations
-annotations <- data.frame(
-  Date = as.Date(c("2024-09-01", "2025-02-15")),
-  Label = c("Go Live", "Townhall"),
-  Side = c("right", "left")
-)
-
-# Run SPC chart (p-chart example)
-summary <- plot_p_chart(
-  df,
-  date_col = "Incident Date",
-  num_col = "Aspirin_Admin",
-  den_col = "Incident_Internal",
-  time_unit = "month",
-  name = "Aspirin Administration Rate",
-  annotations = annotations
-)
-
-# Save outputs
-save_qi_spc(path = ".", width = 16, height = 5, save_table = TRUE)
+get_nemsis_benchmark("Trauma-02", years = 2023:2025)
 ```
 
----
-
-## 🛠 Main Functions
-
-| Function                      | Description                                                   |
-|-------------------------------|---------------------------------------------------------------|
-| `import_spreadsheet()`        | Import data from CSV or Excel                                 |
-| `import_sql()`                | Import data from SQL query outputs                            |
-| `plot_p_chart()`              | Proportion (p) chart with segmented control limits            |
-| `plot_c_chart()`              | Count (c) chart for defect/event tracking                     |
-| `plot_imr_chart()`            | Individual-Moving Range (I-MR) chart                          |
-| `plot_xbar_chart()`           | X-bar chart for continuous data with subgroups                |
-| `plot_with_nemsis_benchmark()`| Compare data to national benchmark lines                      |
-| `get_nemsis_benchmark()`      | Pull NEMSIS national benchmark reference values               |
-| `summary_table()`             | Summarize numerator and denominator performance by time unit  |
-| `qi_help()`                   | Show example inputs and formatting guidance                   |
-| `check_missing()`             | Identify missing values by column                             |
-| `check_duplicates()`          | Identify duplicate rows                                       |
-| `check_outliers()`            | Flag numeric outliers                                         |
-| `describe_data()`             | Describe numeric/categorical columns                          |
-| `profile_data()`              | Auto-profile the dataset using `DataExplorer`                 |
-| `save_qi_spc()`               | Save SPC chart and summary table as image and CSV             |
+This retrieves national monthly EMS benchmarks from NEMSIS and can be overlayed on `plot_p_chart()`.
 
 ---
 
-## 📊 Choosing the Right SPC Chart
+## 📋 Data Checks
 
-| Chart Type    | Use When...                                                                 |
-|---------------|------------------------------------------------------------------------------|
-| **p-chart**   | You're monitoring a **proportion** (e.g., aspirin given / total incidents)   |
-| **c-chart**   | You're counting **events per unit** (e.g., falls per shift)                  |
-| **I-MR chart**| You have **continuous individual values** and no subgroups (e.g., response time) |
-| **X-bar chart**| You have **subgrouped continuous data** (e.g., avg on-scene time per week)  |
-
----
-
-## 📐 Control Chart Rules (Western Electric)
-
-SPC charts include built-in support for shift detection based on these core rules:
-
-1. **Rule 1 – Point beyond control limit**: 1 point outside UCL or LCL
-2. **Rule 2 – Run of 8 on one side**: 8 consecutive points above or below the centerline
-3. **Rule 3 – Trend**: 6 points all increasing or decreasing
-4. **Rule 4 – Cycles or systematic patterns**: Flag unusual repeating patterns (visual)
-
-These help detect **non-random signals** that may indicate process change.
+| Function             | Purpose |
+|----------------------|---------|
+| `check_missing()`     | Find missing values |
+| `check_duplicates()`  | Detect duplicate rows |
+| `check_outliers()`    | IQR-based outlier summary |
+| `describe_data()`     | Numeric and categorical summaries |
+| `profile_data()`      | Generate HTML profile report |
+| `import_spreadsheet()`| Load `.csv` or Excel files interactively |
 
 ---
 
-## 📄 Documentation
+## 📚 Documentation
 
-For detailed examples and reports:
-
-```r
-browseVignettes("EMSqiTools")
-```
-
-Also check:
-
-```
-vignettes/EMSqiTools-report-template.Rmd
-```
+- View function docs via `?plot_p_chart` or RStudio help
 
 ---
 
-## 🤝 Contributing
+## 🤝 License
 
-Pull requests and issues are welcome!  
-Let’s build the ultimate QI toolkit for EMS teams.
-
----
-
-## 📬 Contact
-
-**Maintainer**: Chad Metz  
-**Email**: chadmetz@me.com
+MIT License © 2025
