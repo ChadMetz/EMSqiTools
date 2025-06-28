@@ -8,11 +8,11 @@
 ## 📦 Installation
 
 ```r
-# Install from local directory
-devtools::install("path/to/EMSqiTools")
+# Install devtools if not already installed
+install.packages("devtools")
 
-# Or load after sourcing
-source("EMSqiTools_Functions.R")
+# Install EMSqiTools directly from GitHub
+devtools::install_github("ChadMetz/EMSqiTools")
 ```
 
 ---
