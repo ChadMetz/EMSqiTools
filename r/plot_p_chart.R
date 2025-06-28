@@ -54,7 +54,6 @@ plot_p_chart <- function(
     return(as.Date(dates))
   }
 
-  # Benchmark-only mode
   if (!is.null(benchmark_df) && is.null(df)) {
     benchmark_df <- benchmark_df %>%
       mutate(period = floor_date(date, unit = time_unit),
@@ -77,7 +76,6 @@ plot_p_chart <- function(
 
   if (is.null(df)) stop("df must be provided unless using benchmark-only mode.")
 
-  # Flexible filtering
   num_filter <- rlang::as_function(~ .x %in% num_value)
   den_filter <- rlang::as_function(~ .x %in% den_value)
 
@@ -117,7 +115,6 @@ plot_p_chart <- function(
 
   if (return_table) return(summary)
 
-  ## --- Control limits (Western Electric Rule 2) ---
   side <- summary$p > mean(summary$p, na.rm = TRUE)
   rle_obj <- rle(side)
   lens <- rle_obj$lengths
@@ -152,10 +149,15 @@ plot_p_chart <- function(
 
   p <- ggplot(summary, aes(x = period, y = p)) +
     geom_line(linewidth = 1, color = "#333333") +
-    geom_point(size = 2, color = "black") +
-    geom_step(data = step_df, aes(x = period, y = UCL_adj), linetype = "dotted", color = "#C8102E") +
-    geom_step(data = step_df, aes(x = period, y = LCL_adj), linetype = "dotted", color = "#C8102E") +
+    geom_point(size = 1.5, color = "black") +
+    geom_step(data = step_df, aes(x = period, y = UCL_adj), linetype = "dotted", color = "#C8102E", linewidth = 1.1) +
+    geom_step(data = step_df, aes(x = period, y = LCL_adj), linetype = "dotted", color = "#C8102E", linewidth = 1.1) +
     geom_line(aes(y = CL_adj), color = "#003DA5")
+
+  cl_label <- summary %>% filter(!is.na(CL_adj)) %>% slice_tail(n = 1)
+  p <- p + geom_text(data = cl_label,
+                     aes(x = period, y = CL_adj, label = paste0("CL ", round(CL_adj * 100), "%")),
+                     color = "#003DA5", vjust = -1, size = 3.5)
 
   if (!is.null(benchmark_df)) {
     benchmark_df <- benchmark_df %>%
@@ -183,7 +185,7 @@ plot_p_chart <- function(
       geom_segment(data = annotations, aes(x = Date, xend = Date, y = 0, yend = Y_Pos),
                    linetype = "dotted") +
       geom_point(data = annotations, aes(x = Date, y = Y_Pos, shape = Label),
-                 size = 3, fill = "black") +
+                 size = 2, fill = "black") +
       scale_shape_manual(name = "Event Annotations", values = setNames(annotations$Shape, annotations$Label))
   }
 
