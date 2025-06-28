@@ -1,29 +1,41 @@
-#' Plot I-MR Chart with Annotations
+#' Plot Individuals and Moving Range (I-MR) Control Chart with Stepwise Limits
 #'
-#' Plots an Individuals and Moving Range (I-MR) chart for quality improvement.
-#' Supports annotations and cross-platform font consistency.
+#' This function plots an I-MR control chart for continuous data. It applies
+#' Western Electric Rule 2 (8+ points on one side of center) to identify shifts
+#' and updates control limits accordingly. It returns a faceted ggplot2 object
+#' or a summary table.
 #'
-#' @param df A data frame containing the dataset.
-#' @param date_col The name of the date column (character).
-#' @param id_col The name of the unique ID column (retained for API consistency).
-#' @param value_col The name of the numeric column used for plotting.
-#' @param den_condition A string expression to filter the dataset. Defaults to "TRUE".
-#' @param time_unit Aggregation level: "week", "month", or "quarter".
-#' @param name Title for the chart.
-#' @param annotations Optional data frame of annotations with columns: Date, Label, Shape, Y (optional), Side (optional).
+#' @param df Data frame with your data
+#' @param date_col Name of the date column
+#' @param value_col Name of the numeric column to chart
+#' @param time_unit Aggregation: "week", "month", or "quarter"
+#' @param name Title of the chart
+#' @param annotations Optional data frame with Date, Label, Shape, Y, Side
+#' @param plot_width Not used (for future sizing)
+#' @param plot_height Not used
+#' @param drop_invalid_dates Drop rows with invalid date formats?
+#' @param return_table Return the summary table instead of plotting?
 #'
-#' @return A list with two ggplot objects: I_Chart and MR_Chart.
+#' @return A ggplot object or summary table
 #' @export
-plot_imr_chart <- function(df, date_col, id_col, value_col,
-                           den_condition = "TRUE",
-                           time_unit = c("week", "month", "quarter"),
-                           name = "I-MR Chart", annotations = NULL) {
+plot_imr_chart <- function(
+  df,
+  date_col,
+  value_col,
+  time_unit = c("week", "month", "quarter"),
+  name = "Individuals & MR Control Chart",
+  annotations = NULL,
+  plot_width = 12,
+  plot_height = 4,
+  drop_invalid_dates = FALSE,
+  return_table = FALSE
+) {
   library(dplyr)
-  library(ggplot2)
   library(lubridate)
-  library(scales)
+  library(ggplot2)
+  library(tidyr)
   library(grid)
-  library(rlang)
+  library(scales)
 
   time_unit <- match.arg(time_unit)
 
@@ -41,82 +53,111 @@ plot_imr_chart <- function(df, date_col, id_col, value_col,
     mutate(
       raw_date = .data[[date_col]],
       date_var = parse_date_flexibly(raw_date),
-      period = floor_date(date_var, time_unit)
+      period = floor_date(date_var, unit = time_unit),
+      value = .data[[value_col]]
     ) %>%
-    filter(!!parse_expr(den_condition)) %>%
-    group_by(period) %>%
-    summarise(value = mean(.data[[value_col]], na.rm = TRUE), .groups = "drop") %>%
-    arrange(period)
+    arrange(date_var)
 
-  df$MR <- c(NA, abs(diff(df$value)))
+  if (any(is.na(df$date_var))) {
+    if (drop_invalid_dates) {
+      df <- df %>% filter(!is.na(date_var))
+    } else {
+      stop("Some dates could not be parsed. Use drop_invalid_dates = TRUE to ignore.")
+    }
+  }
 
-  mean_indiv <- mean(df$value, na.rm = TRUE)
-  mr_bar <- mean(df$MR, na.rm = TRUE)
-  i_UCL <- mean_indiv + 3 * mr_bar / 1.128
-  i_LCL <- mean_indiv - 3 * mr_bar / 1.128
-  mr_UCL <- mr_bar + 3 * 0.8525 * mr_bar
+  df <- df %>%
+    mutate(MR = abs(value - lag(value)))
+
+  summary <- df %>%
+    select(date_var, period, value, MR) %>%
+    filter(!is.na(value))
+
+  ## --- Individuals Chart Step Limits ---
+  side <- summary$value > mean(summary$value, na.rm = TRUE)
+  rle_obj <- rle(side)
+  lens <- rle_obj$lengths
+  shift_points <- cumsum(lens)[lens >= 8]
+  shift_starts <- shift_points - lens[which(lens >= 8)] + 1
+  shift_starts <- sort(unique(c(1, shift_starts)))
+
+  summary$CL_I <- NA
+  summary$UCL_I <- NA
+  summary$LCL_I <- NA
+
+  for (i in seq_along(shift_starts)) {
+    start_idx <- shift_starts[i]
+    end_idx <- if (i < length(shift_starts)) shift_starts[i + 1] - 1 else nrow(summary)
+    segment <- summary[start_idx:end_idx, ]
+    cl <- mean(segment$value, na.rm = TRUE)
+    mr_avg <- mean(segment$MR, na.rm = TRUE)
+    sigma_est <- mr_avg / 1.128  # d2 for n=2
+
+    summary$CL_I[start_idx:end_idx] <- cl
+    summary$UCL_I[start_idx:end_idx] <- cl + 3 * sigma_est
+    summary$LCL_I[start_idx:end_idx] <- cl - 3 * sigma_est
+  }
+
+  ## --- MR Chart Limits ---
+  mr_avg_all <- mean(summary$MR, na.rm = TRUE)
+  UCL_MR <- mr_avg_all * 3.267  # D4 for n=2
+
+  summary <- summary %>%
+    mutate(CL_MR = mr_avg_all, UCL_MR = UCL_MR)
+
+  if (return_table) return(summary)
+
+  ## --- Plot Individuals + MR ---
+  p1 <- ggplot(summary, aes(x = date_var, y = value)) +
+    geom_line(linewidth = 1, color = "#333333") +
+    geom_point(size = 2.5) +
+    geom_line(aes(y = CL_I), color = "#003DA5", linewidth = 1) +
+    geom_line(aes(y = UCL_I), linetype = "dotted", color = "#C8102E", linewidth = 1) +
+    geom_line(aes(y = LCL_I), linetype = "dotted", color = "#C8102E", linewidth = 1) +
+    labs(y = "Value", x = "Date", title = paste(name, "(Individuals)"))
 
   if (!is.null(annotations)) {
     annotations <- annotations %>%
       mutate(
-        Label = as.character(Label),
         Date = as.Date(Date),
-        Side = if (!"Side" %in% names(.)) "right" else Side,
-        Y_Pos = if (!"Y" %in% names(.)) max(df$value, na.rm = TRUE) + 0.5 else Y,
-        Shape = if (!"Shape" %in% names(.)) 21 else Shape,
-        hjust_value = ifelse(Side == "left", 1, 0),
-        x_adjusted = ifelse(Side == "left", Date - days(1), Date + days(1))
+        Side = ifelse(!"Side" %in% names(.), "right", Side),
+        Y_Pos = ifelse(!"Y" %in% names(.), max(summary$UCL_I, na.rm = TRUE) + 0.05, Y),
+        Shape = ifelse(!"Shape" %in% names(.), 21, Shape)
       )
-  }
 
-  i_chart <- ggplot(df, aes(x = period, y = value)) +
-    geom_line(linewidth = 1, color = "#333333") +
-    geom_point(size = 3, color = "black") +
-    geom_hline(yintercept = mean_indiv, color = "#003DA5", linewidth = 1) +
-    geom_hline(yintercept = i_UCL, linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    geom_hline(yintercept = i_LCL, linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    labs(title = paste(name, "- Individuals"), x = tools::toTitleCase(time_unit), y = "Value") +
-    scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
-    theme_minimal(base_size = 12, base_family = "Arial") +
-    theme(
-      axis.text = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      axis.title = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      plot.title = element_text(face = "bold", size = 14, hjust = 0.5, color = "#003DA5"),
-      panel.grid.minor = element_blank(),
-      legend.title = element_text(size = 9, face = "bold"),
-      legend.text = element_text(color = "#1A1A1A"),
-      legend.position = "bottom",
-      axis.text.x = element_text(angle = 45, hjust = 1)
-    )
-
-  if (!is.null(annotations)) {
-    i_chart <- i_chart +
+    p1 <- p1 +
       geom_segment(data = annotations, aes(x = Date, xend = Date, y = 0, yend = Y_Pos),
-                   color = "black", linetype = "dotted", linewidth = 0.8) +
+                   linetype = "dotted", linewidth = 0.8) +
       geom_point(data = annotations, aes(x = Date, y = Y_Pos, shape = Label),
-                 size = 2.5, fill = "black", color = "black", stroke = 1.2) +
+                 size = 3, stroke = 1.1, fill = "black") +
       scale_shape_manual(name = "Event Annotations", values = setNames(annotations$Shape, annotations$Label))
   }
 
-  mr_chart <- ggplot(df[-1, ], aes(x = period[-1], y = MR)) +
+  p2 <- ggplot(summary, aes(x = date_var, y = MR)) +
     geom_line(linewidth = 1, color = "#333333") +
-    geom_point(size = 3, color = "black") +
-    geom_hline(yintercept = mr_bar, color = "#003DA5", linewidth = 1) +
-    geom_hline(yintercept = mr_UCL, linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    labs(title = paste(name, "- Moving Range"), x = tools::toTitleCase(time_unit), y = "Moving Range") +
-    scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
-    theme_minimal(base_size = 12, base_family = "Arial") +
-    theme(
-      axis.text = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      axis.title = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      plot.title = element_text(face = "bold", size = 14, hjust = 0.5, color = "#003DA5"),
-      panel.grid.minor = element_blank(),
-      axis.text.x = element_text(angle = 45, hjust = 1)
-    )
+    geom_point(size = 2.5) +
+    geom_hline(yintercept = mr_avg_all, color = "#003DA5", linewidth = 1) +
+    geom_hline(yintercept = UCL_MR, linetype = "dotted", color = "#C8102E", linewidth = 1) +
+    labs(y = "Moving Range", x = "Date", title = paste(name, "(Moving Range)"))
 
-  assign("last_qi_plot", list(I_Chart = i_chart, MR_Chart = mr_chart), envir = .GlobalEnv)
+  p1 <- p1 + theme_minimal(base_size = 12) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(face = "bold", hjust = 0.5, size = 14))
+
+  p2 <- p2 + theme_minimal(base_size = 12) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          plot.title = element_text(face = "bold", hjust = 0.5, size = 14))
+
+  # Combine
+  library(patchwork)
+  combined <- p1 / p2 + plot_annotation(title = name)
+
+  grid.newpage()
+  grid.draw(ggplotGrob(combined))
+
+  assign("last_qi_plot", combined, envir = .GlobalEnv)
   assign("last_qi_plot_name", name, envir = .GlobalEnv)
-  assign("last_qi_summary", df, envir = .GlobalEnv)
+  assign("last_qi_summary", summary, envir = .GlobalEnv)
 
-  return(list(I_Chart = i_chart, MR_Chart = mr_chart))
+  return(combined)
 }
