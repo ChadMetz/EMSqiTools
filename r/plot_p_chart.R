@@ -15,9 +15,6 @@
 #' @param return_table Return summary table instead of plot?
 #'
 #' @return A ggplot or a summary table.
-#' Plot Proportion Control Chart with Optional NEMSIS Benchmark
-#' @export
-plot_p_chart <- function(
   df, date_col, id_col, num_col, num_value,
   den_col, den_value = NULL,
   time_unit = c("week", "month", "quarter"),
