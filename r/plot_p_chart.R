@@ -62,7 +62,7 @@ plot_p_chart <- function(
 
     p <- ggplot(benchmark_df, aes(x = period, y = rate)) +
       geom_line(color = "black", linetype = "longdash", linewidth = 1) +
-      geom_point(size = 3) +
+      geom_point(size = 2) +
       labs(title = name, x = tools::toTitleCase(time_unit), y = "Rate") +
       scale_y_continuous(labels = percent_format(accuracy = 1)) +
       scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
@@ -152,7 +152,7 @@ plot_p_chart <- function(
 
   p <- ggplot(summary, aes(x = period, y = p)) +
     geom_line(linewidth = 1, color = "#333333") +
-    geom_point(size = 3, color = "black") +
+    geom_point(size = 2, color = "black") +
     geom_step(data = step_df, aes(x = period, y = UCL_adj), linetype = "dotted", color = "#C8102E") +
     geom_step(data = step_df, aes(x = period, y = LCL_adj), linetype = "dotted", color = "#C8102E") +
     geom_line(aes(y = CL_adj), color = "#003DA5")
