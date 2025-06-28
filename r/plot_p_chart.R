@@ -1,45 +1,48 @@
-#' Plot Proportion Control Chart with Annotations and Shift Detection
+#' Plot Proportion Control Chart with Optional NEMSIS Benchmark
 #'
-#' This function plots a proportion control chart (p-chart) for quality improvement analysis.
-#' It supports Western Electric Rule 2 shift detection, segmented control limits, and custom annotations.
+#' @param df Data frame with your local data.
+#' @param date_col Name of the date column (character).
+#' @param id_col Unique identifier column (character).
+#' @param num_col Column used for numerator filter.
+#' @param num_value Value(s) or function to select numerator.
+#' @param den_col Column used for denominator filter.
+#' @param den_value Value(s) or function to select denominator.
+#' @param time_unit Time unit for aggregation.
+#' @param name Chart title.
+#' @param annotations Optional event annotations.
+#' @param benchmark_df Optional benchmark dataframe (e.g., from `get_nemsis_benchmark()`).
+#' @param plot_width Plot width.
+#' @param plot_height Plot height.
+#' @param drop_invalid_dates Drop rows with invalid dates?
+#' @param return_table Return summary table instead of plot?
 #'
-#' @param df A data frame containing the dataset.
-#' @param date_col The name of the date column (character).
-#' @param id_col The name of the unique ID column (character).
-#' @param num_condition A string expression to filter the numerator condition.
-#' @param den_condition A string expression to filter the denominator condition. Defaults to "TRUE".
-#' @param time_unit Time aggregation level: "week", "month", or "quarter".
-#' @param name Title for the chart.
-#' @param annotations Optional data frame of annotations with columns: Date, Label, Shape, Y (optional), Side (optional).
-#' @param plot_width Width of the plot in inches (unused).
-#' @param plot_height Height of the plot in inches (unused).
-#' @param drop_invalid_dates Whether to drop rows with unparseable dates. Defaults to FALSE.
-#'
-#' @return A summary data frame with proportions and control limits.
+#' @return A ggplot or a summary table.
 #' @export
-plot_p_chart <- function(df, date_col, id_col, num_condition, den_condition = "TRUE",
-                         time_unit = c("week", "month", "quarter"),
-                         name = "QI Control Chart", annotations = NULL,
-                         plot_width = 12, plot_height = 3, drop_invalid_dates = FALSE) {
+plot_p_chart <- function(
+  df = NULL,
+  date_col = NULL,
+  id_col = NULL,
+  num_col = NULL,
+  num_value = NULL,
+  den_col = NULL,
+  den_value = NULL,
+  time_unit = c("week", "month", "quarter"),
+  name = "QI Control Chart",
+  annotations = NULL,
+  benchmark_df = NULL,
+  plot_width = 12,
+  plot_height = 3,
+  drop_invalid_dates = FALSE,
+  return_table = FALSE
+) {
   library(dplyr)
-  library(ggplot2)
   library(lubridate)
+  library(ggplot2)
   library(scales)
   library(grid)
   library(rlang)
 
   time_unit <- match.arg(time_unit)
-
-  if (!(date_col %in% names(df))) {
-    stop(paste("Column", date_col, "not found in dataframe."))
-  }
-
-  tryCatch({
-    parse_expr(num_condition)
-    parse_expr(den_condition)
-  }, error = function(e) {
-    stop("num_condition or den_condition contains invalid R code. Use '&' or '|' instead of commas.")
-  })
 
   parse_date_flexibly <- function(dates) {
     formats <- c("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y")
@@ -51,6 +54,33 @@ plot_p_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
     return(as.Date(dates))
   }
 
+  # Benchmark-only mode
+  if (!is.null(benchmark_df) && is.null(df)) {
+    benchmark_df <- benchmark_df %>%
+      mutate(period = floor_date(date, unit = time_unit),
+             rate = ifelse(is.na(rate), numerator / denominator, rate))
+
+    p <- ggplot(benchmark_df, aes(x = period, y = rate)) +
+      geom_line(color = "black", linetype = "longdash", linewidth = 1) +
+      geom_point(size = 3) +
+      labs(title = name, x = tools::toTitleCase(time_unit), y = "Rate") +
+      scale_y_continuous(labels = percent_format(accuracy = 1)) +
+      scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
+      theme_minimal(base_size = 12) +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            plot.title = element_text(face = "bold", size = 14, hjust = 0.5))
+
+    grid.newpage()
+    grid.draw(ggplotGrob(p))
+    return(p)
+  }
+
+  if (is.null(df)) stop("df must be provided unless using benchmark-only mode.")
+
+  # Flexible filtering
+  num_filter <- rlang::as_function(~ .x %in% num_value)
+  den_filter <- rlang::as_function(~ .x %in% den_value)
+
   df <- df %>%
     mutate(
       raw_date = .data[[date_col]],
@@ -59,24 +89,21 @@ plot_p_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
     )
 
   if (any(is.na(df$date_var))) {
-    if (isTRUE(drop_invalid_dates)) {
-      warning("Dropping rows with unparseable dates.")
+    if (drop_invalid_dates) {
       df <- df %>% filter(!is.na(date_var))
     } else {
-      bad_dates <- df %>% filter(is.na(date_var)) %>% distinct(raw_date)
-      stop(paste("Some dates could not be parsed. Problematic values include:",
-                 paste(head(bad_dates$raw_date, 5), collapse = ", ")))
+      stop("Some dates could not be parsed. Use drop_invalid_dates = TRUE to ignore.")
     }
   }
 
   den_df <- df %>%
-    filter(!!parse_expr(den_condition)) %>%
+    filter(den_filter(.data[[den_col]])) %>%
     distinct(period, .data[[id_col]]) %>%
     group_by(period) %>%
     summarise(Denominator = n(), .groups = "drop")
 
   num_df <- df %>%
-    filter(!!parse_expr(num_condition)) %>%
+    filter(num_filter(.data[[num_col]])) %>%
     distinct(period, .data[[id_col]]) %>%
     group_by(period) %>%
     summarise(Numerator = n(), .groups = "drop")
@@ -88,6 +115,9 @@ plot_p_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
       p = ifelse(Denominator > 0, Numerator / Denominator, NA)
     )
 
+  if (return_table) return(summary)
+
+  ## --- Control limits (Western Electric Rule 2) ---
   side <- summary$p > mean(summary$p, na.rm = TRUE)
   rle_obj <- rle(side)
   lens <- rle_obj$lengths
@@ -120,67 +150,52 @@ plot_p_chart <- function(df, date_col, id_col, num_condition, den_condition = "T
         mutate(period = max(summary$period))
     )
 
-  cl_labels <- summary %>%
-    slice(shift_starts) %>%
-    mutate(
-      Label = paste0("CL = ", percent(CL_adj, accuracy = 1)),
-      X_Adjust = period + 7,
-      Y_Pos = CL_adj + 0.02
-    )
+  p <- ggplot(summary, aes(x = period, y = p)) +
+    geom_line(linewidth = 1, color = "#333333") +
+    geom_point(size = 3, color = "black") +
+    geom_step(data = step_df, aes(x = period, y = UCL_adj), linetype = "dotted", color = "#C8102E") +
+    geom_step(data = step_df, aes(x = period, y = LCL_adj), linetype = "dotted", color = "#C8102E") +
+    geom_line(aes(y = CL_adj), color = "#003DA5")
 
-  shift_lines <- summary %>%
-    slice(shift_starts) %>%
-    filter(row_number() != 1) %>%
-    transmute(Start_Date = period)
+  if (!is.null(benchmark_df)) {
+    benchmark_df <- benchmark_df %>%
+      mutate(period = floor_date(date, unit = time_unit),
+             rate = ifelse(is.na(rate), numerator / denominator, rate))
+
+    p <- p +
+      geom_line(data = benchmark_df, aes(x = period, y = rate), color = "black", linetype = "longdash") +
+      geom_text(data = benchmark_df %>% slice_tail(n = 1),
+                aes(x = period, y = rate + 0.02, label = "Benchmark"),
+                color = "black", hjust = 0, size = 4)
+  }
 
   if (!is.null(annotations)) {
     annotations <- annotations %>%
       mutate(
         Label = as.character(Label),
         Date = as.Date(Date),
-        Side = if (!"Side" %in% names(.)) "right" else Side,
-        Y_Pos = if (!"Y" %in% names(.)) max(summary$UCL_adj, na.rm = TRUE) + 0.05 else Y,
-        Shape = if (!"Shape" %in% names(.)) 21 else Shape,
-        hjust_value = ifelse(Side == "left", 1, 0),
-        x_adjusted = ifelse(Side == "left", Date - days(1), Date + days(1))
+        Side = ifelse(!"Side" %in% names(.), "right", Side),
+        Y_Pos = ifelse(!"Y" %in% names(.), max(summary$UCL_adj, na.rm = TRUE) + 0.05, Y),
+        Shape = ifelse(!"Shape" %in% names(.), 21, Shape)
       )
-  }
 
-  p <- ggplot(summary, aes(x = period, y = p)) +
-    geom_line(linewidth = 1, color = "#333333") +
-    geom_point(size = 3, color = "black") +
-    geom_step(data = step_df, aes(x = period, y = UCL_adj), linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    geom_step(data = step_df, aes(x = period, y = LCL_adj), linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    geom_line(aes(y = CL_adj), color = "#003DA5", linewidth = 1) +
-    geom_text(data = cl_labels, aes(x = X_Adjust - 4, y = Y_Pos + 0.02, label = Label),
-              color = "#003DA5", size = 5, hjust = 0, fontface = "bold") +
-    geom_segment(data = shift_lines, aes(x = Start_Date, xend = Start_Date, y = 0, yend = 1),
-                 color = "#C8102E", linetype = "solid", linewidth = 1)
-
-  if (!is.null(annotations)) {
     p <- p +
       geom_segment(data = annotations, aes(x = Date, xend = Date, y = 0, yend = Y_Pos),
-                   color = "black", linetype = "dotted", linewidth = 0.8) +
+                   linetype = "dotted") +
       geom_point(data = annotations, aes(x = Date, y = Y_Pos, shape = Label),
-                 size = 2.5, fill = "black", color = "black", stroke = 1.2) +
+                 size = 3, fill = "black") +
       scale_shape_manual(name = "Event Annotations", values = setNames(annotations$Shape, annotations$Label))
   }
 
-    p <- p +
+  p <- p +
+    labs(x = tools::toTitleCase(time_unit), y = "Proportion", title = name) +
+    scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0, 1.05)) +
     scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
-    scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(-0.1, 1.05)) +
-    theme_minimal(base_size = 12, base_family = "Arial") +  # ← updated line
+    theme_minimal(base_size = 12) +
     theme(
-      axis.text = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      axis.title = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      legend.title = element_text(size = 9, face = "bold"),
-      legend.text = element_text(color = "#1A1A1A"),
-      legend.position = "bottom",
-      plot.title = element_text(face = "bold", size = 14, hjust = 0.5, color = "#003DA5"),
       axis.text.x = element_text(angle = 45, hjust = 1),
-      panel.grid.minor = element_blank()
-    ) +
-    labs(x = tools::toTitleCase(time_unit), y = "Proportion", title = name)
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 14)
+    )
 
   grid.newpage()
   grid.draw(ggplotGrob(p))
