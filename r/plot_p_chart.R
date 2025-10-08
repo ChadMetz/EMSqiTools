@@ -12,6 +12,8 @@
 #' @param num_value Value(s) in `num_col` that count toward the numerator.
 #' @param den_col Column used to define the denominator.
 #' @param den_value Value(s) in `den_col` that count toward the denominator. Defaults to NULL (all values).
+#' @param filter_col Optional column to filter on prior to any calculations.
+#' @param filter_value Optional value(s) in `filter_col` to keep (vector-friendly).
 #' @param time_unit Time unit for aggregation. One of `"week"`, `"month"`, or `"quarter"`.
 #' @param name Chart title.
 #' @param annotations Optional data frame of event annotations with `Date`, `Label`, etc.
@@ -29,6 +31,8 @@ plot_p_chart <- function(
   num_value,
   den_col,
   den_value = NULL,
+  filter_col = NULL,
+  filter_value = NULL,
   time_unit = c("week", "month", "quarter"),
   name = "QI Control Chart",
   annotations = NULL,
@@ -42,6 +46,9 @@ plot_p_chart <- function(
   time_unit <- match.arg(time_unit)
 
   parse_date_flexibly <- function(dates) {
+    # If already Date/POSIXt, coerce safely
+    if (inherits(dates, "Date")) return(dates)
+    if (inherits(dates, c("POSIXct","POSIXt"))) return(as.Date(dates))
     formats <- c("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y")
     for (fmt in formats) {
       parsed <- as.Date(dates, format = fmt)
@@ -51,6 +58,7 @@ plot_p_chart <- function(
     return(as.Date(dates))
   }
 
+  # Support "benchmark-only" quick plot
   if (!is.null(benchmark_df) && is.null(df)) {
     benchmark_df <- benchmark_df %>%
       mutate(period = floor_date(date, unit = time_unit),
@@ -73,6 +81,14 @@ plot_p_chart <- function(
   }
 
   if (is.null(df)) stop("df must be provided.")
+
+  # ---- NEW: optional global filter before any counts ----
+  if (!is.null(filter_col) && !is.null(filter_value)) {
+    if (!filter_col %in% names(df)) {
+      stop(sprintf("filter_col '%s' not found in df.", filter_col))
+    }
+    df <- df %>% filter(.data[[filter_col]] %in% filter_value)
+  }
 
   df <- df %>%
     mutate(
@@ -109,9 +125,10 @@ plot_p_chart <- function(
     mutate(
       Numerator = ifelse(is.na(Numerator), 0, Numerator),
       p = ifelse(Denominator > 0, Numerator / Denominator, NA)
-    )
+    ) %>%
+    arrange(period)
 
-  # SHIFT DETECTION
+  # SHIFT DETECTION (Western Electric Rule 2: 8 on one side of CL)
   side <- summary$p > mean(summary$p, na.rm = TRUE)
   rle_obj <- rle(side)
   lens <- rle_obj$lengths
@@ -119,10 +136,10 @@ plot_p_chart <- function(
   shift_starts <- shift_points - lens[which(lens >= 8)] + 1
   shift_starts <- sort(unique(c(1, shift_starts)))
 
-  summary$CL_adj <- NA
-  summary$UCL_adj <- NA
-  summary$LCL_adj <- NA
-  segment_labels <- data.frame()
+  summary$CL_adj <- NA_real_
+  summary$UCL_adj <- NA_real_
+  summary$LCL_adj <- NA_real_
+  segment_labels <- tibble()
 
   for (i in seq_along(shift_starts)) {
     start_idx <- shift_starts[i]
@@ -145,7 +162,6 @@ plot_p_chart <- function(
   if (return_table) {
     return(
       summary %>%
-        arrange(period) %>%
         mutate(
           Proportion = round(p * 100, 1),
           CL = round(CL_adj * 100, 1),
@@ -158,7 +174,7 @@ plot_p_chart <- function(
   }
 
   control_segments <- summary %>%
-    mutate(next_period = lead(period)) %>%
+    mutate(next_period = dplyr::lead(period)) %>%
     filter(!is.na(next_period)) %>%
     select(period, next_period, CL_adj, UCL_adj, LCL_adj)
 
@@ -180,8 +196,9 @@ plot_p_chart <- function(
       mutate(period = floor_date(date, unit = time_unit),
              rate = ifelse(is.na(rate), numerator / denominator, rate))
     p <- p +
-      geom_line(data = benchmark_df, aes(x = period, y = rate), color = "black", linetype = "longdash") +
-      geom_text(data = benchmark_df %>% slice_tail(n = 1),
+      geom_line(data = benchmark_df, aes(x = period, y = rate),
+                color = "black", linetype = "longdash") +
+      geom_text(data = benchmark_df %>% dplyr::slice_tail(n = 1),
                 aes(x = period, y = rate + 0.02, label = "Benchmark"),
                 color = "black", hjust = 0, size = 4)
   }
@@ -201,7 +218,8 @@ plot_p_chart <- function(
                    linetype = "dotted") +
       geom_point(data = annotations, aes(x = Date, y = Y_Pos, shape = Label),
                  size = 2, fill = "black") +
-      scale_shape_manual(name = "Event Annotations", values = setNames(annotations$Shape, annotations$Label))
+      scale_shape_manual(name = "Event Annotations",
+                         values = setNames(annotations$Shape, annotations$Label))
   }
 
   p <- p +
