@@ -8,6 +8,8 @@
 #' @param date_col The name of the date column (character).
 #' @param id_col The name of the unique ID column (character).
 #' @param value_col The name of the numeric column to be summarized (character).
+#' @param filter_col Optional column to filter on prior to any calculations.
+#' @param filter_value Optional value(s) in `filter_col` to keep (vector-friendly).
 #' @param time_unit Time aggregation level: "week", "month", or "quarter".
 #' @param name Title for the chart.
 #' @param annotations Optional data frame of annotations with columns: Date, Label, Shape, Y (optional), Side (optional).
@@ -23,6 +25,8 @@ plot_x_chart <- function(
   date_col,
   id_col,
   value_col,
+  filter_col = NULL,
+  filter_value = NULL,
   time_unit = c("week", "month", "quarter"),
   name = "X-Bar Control Chart",
   annotations = NULL,
@@ -36,10 +40,14 @@ plot_x_chart <- function(
   library(ggplot2)
   library(scales)
   library(grid)
+  library(rlang)
+  library(tibble)
 
   time_unit <- match.arg(time_unit)
 
   parse_date_flexibly <- function(dates) {
+    if (inherits(dates, "Date")) return(dates)
+    if (inherits(dates, c("POSIXct","POSIXt"))) return(as.Date(dates))
     formats <- c("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d-%m-%Y", "%d/%m/%Y", "%d %b %Y")
     for (fmt in formats) {
       parsed <- as.Date(dates, format = fmt)
@@ -47,6 +55,16 @@ plot_x_chart <- function(
     }
     warning("Could not parse all dates. Returning NAs where format failed.")
     return(as.Date(dates))
+  }
+
+  if (is.null(df)) stop("df must be provided.")
+
+  # ---- Optional global filter (aligned with plot_p_chart) ----
+  if (!is.null(filter_col) && !is.null(filter_value)) {
+    if (!filter_col %in% names(df)) {
+      stop(sprintf("filter_col '%s' not found in df.", filter_col))
+    }
+    df <- df %>% dplyr::filter(.data[[filter_col]] %in% filter_value)
   }
 
   df <- df %>%
@@ -67,15 +85,18 @@ plot_x_chart <- function(
     }
   }
 
+  # Summarise per period
   summary <- df %>%
     group_by(period) %>%
     summarise(
       x_bar = mean(.data[[value_col]], na.rm = TRUE),
-      sd = sd(.data[[value_col]], na.rm = TRUE),
-      n = n(),
+      sd    = sd(.data[[value_col]],   na.rm = TRUE),
+      n     = sum(!is.na(.data[[value_col]])),
       .groups = "drop"
-    )
+    ) %>%
+    arrange(period)
 
+  # ---- Western Electric Rule 2: 8 points on one side of overall mean ----
   side <- summary$x_bar > mean(summary$x_bar, na.rm = TRUE)
   rle_obj <- rle(side)
   lens <- rle_obj$lengths
@@ -83,97 +104,102 @@ plot_x_chart <- function(
   shift_starts <- shift_points - lens[which(lens >= 8)] + 1
   shift_starts <- sort(unique(c(1, shift_starts)))
 
-  summary$CL_adj <- NA
-  summary$UCL_adj <- NA
-  summary$LCL_adj <- NA
+  summary$CL_adj  <- NA_real_
+  summary$UCL_adj <- NA_real_
+  summary$LCL_adj <- NA_real_
+  segment_labels <- tibble()
 
   for (i in seq_along(shift_starts)) {
     start_idx <- shift_starts[i]
-    end_idx <- if (i < length(shift_starts)) shift_starts[i + 1] - 1 else nrow(summary)
-    segment <- summary[start_idx:end_idx, ]
-    cl <- mean(segment$x_bar, na.rm = TRUE)
-    se <- mean(segment$sd / sqrt(segment$n), na.rm = TRUE)
+    end_idx   <- if (i < length(shift_starts)) shift_starts[i + 1] - 1 else nrow(summary)
+    segment   <- summary[start_idx:end_idx, ]
 
-    summary$CL_adj[start_idx:end_idx] <- cl
+    cl <- mean(segment$x_bar, na.rm = TRUE)
+    se <- mean(segment$sd / pmax(segment$n, 1)^0.5, na.rm = TRUE)  # pooled-ish SE
+
+    summary$CL_adj[start_idx:end_idx]  <- cl
     summary$UCL_adj[start_idx:end_idx] <- cl + 2 * se
     summary$LCL_adj[start_idx:end_idx] <- cl - 2 * se
+
+    label_row <- segment[ceiling(nrow(segment)/2), ]
+    segment_labels <- bind_rows(segment_labels, tibble(
+      period = label_row$period,
+      CL_adj = cl,
+      label  = paste0("CL ", round(cl, 2))
+    ))
   }
 
-  if (return_table) return(summary)
-
-  step_df <- summary %>%
-    select(period, UCL_adj, LCL_adj) %>%
-    mutate(period = period - days(3)) %>%
-    bind_rows(
-      summary[nrow(summary), ] %>%
-        select(period, UCL_adj, LCL_adj) %>%
-        mutate(period = max(summary$period))
+  if (return_table) {
+    return(
+      summary %>%
+        transmute(
+          period,
+          Mean = round(x_bar, 2),
+          CL   = round(CL_adj, 2),
+          UCL  = round(UCL_adj, 2),
+          LCL  = round(LCL_adj, 2)
+        ) %>%
+        as_tibble()
     )
+  }
 
-  cl_labels <- summary %>%
-    slice(shift_starts) %>%
-    mutate(
-      Label = paste0("CL = ", round(CL_adj, 2)),
-      X_Adjust = period + 7,
-      Y_Pos = CL_adj + 0.02
-    )
+  # Build stepwise segments for CL/UCL/LCL (aligned with p-chart)
+  control_segments <- summary %>%
+    mutate(next_period = dplyr::lead(period)) %>%
+    filter(!is.na(next_period)) %>%
+    select(period, next_period, CL_adj, UCL_adj, LCL_adj)
 
-  shift_lines <- summary %>%
-    slice(shift_starts) %>%
-    filter(row_number() != 1) %>%
-    transmute(Start_Date = period)
+  # ---- Plot (style aligned with plot_p_chart) ----
+  p <- ggplot(summary, aes(x = period, y = x_bar)) +
+    geom_line(linewidth = 1, color = "#333333") +
+    geom_point(size = 1.8, color = "black") +
+    geom_segment(data = control_segments,
+                 aes(x = period, xend = next_period, y = UCL_adj, yend = UCL_adj),
+                 color = "#C8102E", linewidth = 0.7, linetype = "dotted") +
+    geom_segment(data = control_segments,
+                 aes(x = period, xend = next_period, y = LCL_adj, yend = LCL_adj),
+                 color = "#C8102E", linewidth = 0.7, linetype = "dotted") +
+    geom_segment(data = control_segments,
+                 aes(x = period, xend = next_period, y = CL_adj, yend = CL_adj),
+                 color = "#003DA5", linewidth = 0.7) +
+    geom_text(data = segment_labels,
+              aes(x = period, y = CL_adj, label = label),
+              color = "#003DA5", vjust = -1, fontface = "bold", size = 3)
 
+  # ---- Annotations (mirrors p-chart defaults) ----
   if (!is.null(annotations)) {
     annotations <- annotations %>%
       mutate(
         Label = as.character(Label),
-        Date = as.Date(Date),
-        Side = if (!"Side" %in% names(.)) "right" else Side,
-        Y_Pos = if (!"Y" %in% names(.)) max(summary$UCL_adj, na.rm = TRUE) + 0.05 else Y,
-        Shape = if (!"Shape" %in% names(.)) 21 else Shape,
-        hjust_value = ifelse(Side == "left", 1, 0),
-        x_adjusted = ifelse(Side == "left", Date - days(1), Date + days(1))
+        Date  = as.Date(Date),
+        Side  = ifelse(!"Side" %in% names(.), "right", Side),
+        Y_Pos = ifelse(!"Y"    %in% names(.), max(summary$UCL_adj, na.rm = TRUE) + 0.05 * abs(max(summary$x_bar, na.rm = TRUE)), Y),
+        Shape = ifelse(!"Shape"%in% names(.), 21, Shape)
       )
-  }
 
-  p <- ggplot(summary, aes(x = period, y = x_bar)) +
-    geom_line(linewidth = 1, color = "#333333") +
-    geom_point(size = 3, color = "black") +
-    geom_step(data = step_df, aes(x = period, y = UCL_adj), linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    geom_step(data = step_df, aes(x = period, y = LCL_adj), linetype = "dotted", color = "#C8102E", linewidth = 1) +
-    geom_line(aes(y = CL_adj), color = "#003DA5", linewidth = 1) +
-    geom_text(data = cl_labels, aes(x = X_Adjust - 4, y = Y_Pos + 0.02, label = Label),
-              color = "#003DA5", size = 5, hjust = 0, fontface = "bold") +
-    geom_segment(data = shift_lines, aes(x = Start_Date, xend = Start_Date, y = -Inf, yend = Inf),
-                 color = "#C8102E", linetype = "solid", linewidth = 1)
-
-  if (!is.null(annotations)) {
     p <- p +
-      geom_segment(data = annotations, aes(x = Date, xend = Date, y = 0, yend = Y_Pos),
-                   color = "black", linetype = "dotted", linewidth = 0.8) +
+      geom_segment(data = annotations, aes(x = Date, xend = Date, y = -Inf, yend = Y_Pos),
+                   linetype = "dotted") +
       geom_point(data = annotations, aes(x = Date, y = Y_Pos, shape = Label),
-                 size = 2.5, fill = "black", color = "black", stroke = 1.2) +
-      scale_shape_manual(name = "Event Annotations", values = setNames(annotations$Shape, annotations$Label))
+                 size = 2, fill = "black") +
+      scale_shape_manual(name = "Event Annotations",
+                         values = setNames(annotations$Shape, annotations$Label))
   }
 
   p <- p +
     scale_x_date(date_labels = "%b %Y", date_breaks = "1 month") +
-    theme_minimal(base_size = 12, base_family = "Arial") +
+    labs(x = tools::toTitleCase(time_unit), y = "Mean", title = name) +
+    theme_minimal(base_size = 12) +
     theme(
-      axis.text = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      axis.title = element_text(face = "bold", color = "#1A1A1A", size = 12),
-      plot.title = element_text(face = "bold", size = 14, hjust = 0.5, color = "#003DA5"),
+      axis.text  = element_text(face = "bold"),
+      axis.title = element_text(face = "bold"),
       axis.text.x = element_text(angle = 45, hjust = 1),
-      panel.grid.minor = element_blank()
-    ) +
-    labs(x = tools::toTitleCase(time_unit), y = "Mean", title = name)
+      plot.title  = element_text(face = "bold", hjust = 0.5, size = 14)
+    )
 
-  grid.newpage()
-  grid.draw(ggplotGrob(p))
+  return(p)
+}
 
-  assign("last_qi_plot", p, envir = .GlobalEnv)
-  assign("last_qi_plot_name", name, envir = .GlobalEnv)
-  assign("last_qi_summary", summary, envir = .GlobalEnv)
 
   return(p)
 }
