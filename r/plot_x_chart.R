@@ -200,6 +200,3 @@ plot_x_chart <- function(
   return(p)
 }
 
-
-  return(p)
-}
